@@ -926,3 +926,14 @@ dialog::backdrop {
   min-height: 0;
   accent-color: var(--primary);
 }
+
+.region-note {
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--soon-soft);
+  color: var(--soon);
+}
+
+.list li div span + span {
+  margin-top: 2px;
+}

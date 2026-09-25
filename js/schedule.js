@@ -230,11 +230,134 @@ const PRODUCTS = {
   hpv: [{ name: '가다실' }, { name: '서바릭스' }, { name: '가다실9 (유료)' }],
 };
 
-for (const vaccine of VACCINES) vaccine.products = PRODUCTS[vaccine.id] ?? [];
+// 베트남에서 접종할 수 있는 제품 (VNVC·롱쩌우 등 민간 접종센터와 국가예방접종 TCMR 기준).
+// 6가 혼합백신(Hexaxim, Infanrix Hexa)은 B형간염까지 함께 접종한다.
+const HEXA = ['dtap', 'ipv', 'hib', 'hepb'];
+const combo = (name, all, self) => ({ name, covers: all.filter((id) => id !== self) });
+const PRODUCTS_VN = {
+  bcg: [{ name: 'BCG (IVAC, 국가무료)' }],
+  hepb: [
+    { name: 'Gene-HBvax (베트남)' },
+    { name: 'Engerix-B' },
+    { name: 'Euvax B' },
+    { name: 'Heberbiovac HB' },
+    combo('Hexaxim (6가)', HEXA, 'hepb'),
+    combo('Infanrix Hexa (6가)', HEXA, 'hepb'),
+  ],
+  dtap: [
+    combo('Hexaxim (6가)', HEXA, 'dtap'),
+    combo('Infanrix Hexa (6가)', HEXA, 'dtap'),
+    { name: 'Pentaxim (5가)', covers: ['ipv', 'hib'] },
+    { name: 'Tetraxim (4가)', covers: ['ipv'] },
+    { name: '5가 DPT-VGB-Hib (국가무료)', covers: ['hib', 'hepb'] },
+  ],
+  ipv: [
+    { name: 'Imovax Polio (IPV)' },
+    { name: 'bOPV 경구 (국가무료)' },
+    combo('Hexaxim (6가)', HEXA, 'ipv'),
+    combo('Infanrix Hexa (6가)', HEXA, 'ipv'),
+    { name: 'Pentaxim (5가)', covers: ['dtap', 'hib'] },
+    { name: 'Tetraxim (4가)', covers: ['dtap'] },
+  ],
+  hib: [
+    combo('Hexaxim (6가)', HEXA, 'hib'),
+    combo('Infanrix Hexa (6가)', HEXA, 'hib'),
+    { name: 'Pentaxim (5가)', covers: ['dtap', 'ipv'] },
+    { name: '5가 DPT-VGB-Hib (국가무료)', covers: ['dtap', 'hepb'] },
+  ],
+  pcv: [{ name: 'Synflorix (10가)' }, { name: 'Prevenar 13' }, { name: 'Vaxneuvance (15가)' }, { name: 'Prevenar 20' }],
+  rv: [
+    { name: 'Rotarix', variant: 'rv1' },
+    { name: 'Rotavin-M1 (베트남)', variant: 'rv1' },
+    { name: 'RotaTeq', variant: 'rv5' },
+  ],
+  mmr: [
+    { name: 'MMR II' },
+    { name: 'Priorix' },
+    { name: 'ProQuad (MMR+수두)', covers: ['var'] },
+    { name: 'MVVac 홍역 단독 (국가무료)' },
+    { name: 'MR 홍역·풍진 (국가무료)' },
+  ],
+  var: [
+    { name: 'Varivax' },
+    { name: 'Varilrix' },
+    { name: 'Varicella (녹십자, 한국)' },
+    { name: 'ProQuad (MMR+수두)', covers: ['mmr'] },
+  ],
+  hepa: [{ name: 'Avaxim 80' }, { name: 'Havax (베트남, 만 2세~)' }, { name: 'Twinrix (A+B형)', covers: ['hepb'] }],
+  je: [
+    { name: 'Jeev (인도)', variant: 'inactivated' },
+    { name: 'Jevax (베트남, 국가무료)', variant: 'inactivated' },
+    { name: 'Imojev', variant: 'live' },
+  ],
+  iiv: [{ name: 'Vaxigrip Tetra' }, { name: 'Influvac Tetra' }, { name: 'GCFlu Quadrivalent' }, { name: 'Ivacflu-S (베트남)' }],
+  tdap: [{ name: 'Adacel' }, { name: 'Boostrix' }],
+  hpv: [{ name: 'Gardasil' }, { name: 'Gardasil 9' }],
+};
 
-// 아이에게 선택된 일정(로타릭스/로타텍 등)에 맞는 제품만 돌려준다.
-export function productsFor(vaccine, options = {}) {
-  if (!vaccine.variants) return vaccine.products;
+// 베트남에서 한국과 다르게 알아둘 점
+const NOTES_VN = {
+  bcg: '베트남 국가예방접종(TCMR)은 출생 후 1개월 이내 무료로 접종해요.',
+  hepb: '베트남에서는 2·3·4개월(국가) 또는 2·4·6개월(민간)에 6가/5가 혼합백신으로 B형간염을 함께 맞는 경우가 많아요.',
+  dtap: '한국에서 쓰는 인판릭스 단독 백신 대신, 베트남에서는 Hexaxim·Infanrix Hexa(6가)나 Pentaxim(5가) 혼합백신을 주로 맞아요.',
+  hib: '베트남에는 Hib 단독 백신이 거의 없어 혼합백신으로 맞아요.',
+  mmr: '베트남 국가예방접종은 생후 9개월 홍역(MVVac), 18개월 MR을 무료로 접종해요. 한국 일정(12개월 MMR)과 다르니 병원과 상의하세요.',
+  rv: 'Rotavin-M1(베트남)은 로타릭스처럼 2회 먹는 백신이에요.',
+  je: 'Jevax(국가무료)와 Jeev는 불활성화 백신, Imojev는 생백신이에요. 제품마다 추가접종 일정이 다를 수 있어요.',
+  hepa: 'Havax는 만 2세부터 접종할 수 있어요.',
+};
+
+// 로타바이러스·일본뇌염 일정 선택 버튼의 나라별 이름
+const VARIANT_LABELS_VN = {
+  rv: { rv1: 'Rotarix·Rotavin (2회)', rv5: 'RotaTeq (3회)' },
+  je: { inactivated: '불활성화 Jeev·Jevax', live: '생백신 Imojev (2회)' },
+};
+
+export const REGIONS = {
+  kr: { label: '한국', guide: { name: '예방접종도우미', url: 'https://nip.kdca.go.kr' } },
+  vn: { label: '베트남', guide: { name: 'VNVC', url: 'https://vnvc.vn' } },
+};
+
+// 베트남에서 추가로 고려하는 접종 (앱 일정에는 넣지 않고 안내만 한다)
+export const EXTRAS_VN = [
+  {
+    name: '수막구균 B',
+    products: 'Bexsero, VA-Mengoc-BC',
+    when: 'Bexsero 생후 2개월부터, VA-Mengoc-BC 생후 6개월부터',
+  },
+  {
+    name: '수막구균 ACYW',
+    products: 'Menactra, MenQuadfi, Nimenrix',
+    when: 'Menactra 생후 9개월부터 (제품별 일정 다름)',
+  },
+  { name: '뎅기열', products: 'Qdenga', when: '만 4세부터, 3개월 간격 2회' },
+];
+
+for (const vaccine of VACCINES) {
+  vaccine.productsByRegion = { kr: PRODUCTS[vaccine.id] ?? [], vn: PRODUCTS_VN[vaccine.id] ?? [] };
+  vaccine.notesByRegion = { vn: NOTES_VN[vaccine.id] };
+}
+
+function allProducts(vaccine) {
+  return [...vaccine.productsByRegion.kr, ...vaccine.productsByRegion.vn];
+}
+
+export function findProduct(vaccine, name) {
+  return allProducts(vaccine).find((p) => p.name === name) ?? null;
+}
+
+// 거주 국가와 선택된 일정(로타릭스/로타텍 등)에 맞는 제품만 돌려준다.
+export function productsFor(vaccine, options = {}, region = 'kr') {
+  const list = vaccine.productsByRegion[region] ?? vaccine.productsByRegion.kr;
+  if (!vaccine.variants) return list;
   const key = options[vaccine.option] ?? DEFAULT_OPTIONS[vaccine.option];
-  return vaccine.products.filter((p) => !p.variant || p.variant === key);
+  return list.filter((p) => !p.variant || p.variant === key);
+}
+
+export function variantLabel(vaccine, key, region = 'kr') {
+  return (region === 'vn' && VARIANT_LABELS_VN[vaccine.option]?.[key]) || vaccine.variants[key].label;
+}
+
+export function regionNote(vaccine, region = 'kr') {
+  return vaccine.notesByRegion[region] ?? null;
 }

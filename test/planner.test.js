@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { buildPlan, agenda, reminders, summarize, groupByStage } from '../js/planner.js';
 import { buildICS, foldLine } from '../js/ics.js';
 import { normalize } from '../js/store.js';
-import { VACCINES, productsFor } from '../js/schedule.js';
+import { VACCINES, productsFor, variantLabel } from '../js/schedule.js';
 
 const child = (options) => ({ id: 'c1', name: '문식', birth: '2026-07-25', options });
 const find = (plan, id) => plan.find((i) => i.id === id);
@@ -104,12 +104,21 @@ test('백신 제품: 선택한 일정에 맞는 제품만 보여준다', () => {
   assert.deepEqual(productsFor(rv, { rv: 'rv5' }).map((p) => p.name), ['로타텍']);
   const je = VACCINES.find((v) => v.id === 'je');
   assert.ok(productsFor(je, { je: 'live' }).every((p) => p.variant === 'live'));
-  // 모든 백신에 제품이 있고, 혼합백신이 가리키는 백신은 실제로 존재한다
+  // 모든 백신에 나라별 제품이 있고, 혼합백신이 가리키는 백신과 일정 종류는 실제로 존재한다
   const ids = new Set(VACCINES.map((v) => v.id));
   for (const v of VACCINES) {
-    assert.ok(v.products.length > 0, v.id);
-    for (const p of v.products) for (const c of p.covers ?? []) assert.ok(ids.has(c), `${v.id} → ${c}`);
-    for (const p of v.products) if (p.variant) assert.ok(v.variants[p.variant], `${v.id}: ${p.variant}`);
+    for (const region of ['kr', 'vn']) {
+      const list = v.productsByRegion[region];
+      assert.ok(list.length > 0, `${region} ${v.id}`);
+      for (const p of list) {
+        for (const c of p.covers ?? []) assert.ok(ids.has(c) && c !== v.id, `${v.id} → ${c}`);
+        if (p.variant) assert.ok(v.variants[p.variant], `${v.id}: ${p.variant}`);
+      }
+      // 일정 종류가 있는 백신은 어느 나라에서든 종류마다 제품이 하나 이상 있어야 한다
+      for (const key of Object.keys(v.variants ?? {})) {
+        assert.ok(productsFor(v, { [v.option]: key }, region).length > 0, `${region} ${v.id} ${key}`);
+      }
+    }
   }
 });
 
@@ -120,4 +129,18 @@ test('저장 데이터: 제품 이름을 유지한다', () => {
   });
   assert.equal(state.records.a['rv-1'].product, '로타텍');
   assert.equal(state.records.a['bcg-1'].product, '');
+});
+
+test('베트남: 현지 제품과 6가 혼합백신', () => {
+  const byId = (id) => VACCINES.find((v) => v.id === id);
+  const rv = byId('rv');
+  assert.deepEqual(productsFor(rv, { rv: 'rv1' }, 'vn').map((p) => p.name), ['Rotarix', 'Rotavin-M1 (베트남)']);
+  assert.equal(variantLabel(rv, 'rv5', 'vn'), 'RotaTeq (3회)');
+  assert.equal(variantLabel(rv, 'rv5', 'kr'), '로타텍 (3회)');
+  const hexa = productsFor(byId('dtap'), {}, 'vn').find((p) => p.name.startsWith('Hexaxim'));
+  assert.deepEqual(hexa.covers, ['ipv', 'hib', 'hepb']);
+  // 한국 전용 제품은 베트남 목록에 없다
+  assert.ok(!productsFor(byId('je'), { je: 'inactivated' }, 'vn').some((p) => p.name.includes('보령')));
+  assert.equal(normalize({ region: 'vn' }).region, 'vn');
+  assert.equal(normalize({ region: 'xx' }).region, 'kr');
 });

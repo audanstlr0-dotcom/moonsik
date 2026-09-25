@@ -23,6 +23,7 @@ export function normalize(raw) {
     }
   }
   state.records = records;
+  if (!['kr', 'vn'].includes(state.region)) state.region = 'kr';
   if (!state.children.some((c) => c.id === state.activeChildId)) state.activeChildId = state.children[0]?.id ?? null;
   return state;
 }

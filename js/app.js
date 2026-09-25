@@ -1,6 +1,6 @@
-import { VACCINES, productsFor } from './schedule.js';
+import { VACCINES, REGIONS, EXTRAS_VN, productsFor, findProduct, variantLabel, regionNote } from './schedule.js';
 import { buildPlan, groupByStage, groupByVaccine, summarize, agenda, reminders, STATUS } from './planner.js';
-import { todayISO, formatAge, formatDate, relativeDays, isValidDate, compare } from './dates.js';
+import { todayISO, formatAge, formatDate, relativeDays, isValidDate, compare, diffDays } from './dates.js';
 import { buildICS } from './ics.js';
 import { load, save, normalize, newId } from './store.js';
 
@@ -14,6 +14,7 @@ let currentView = 'home';
 let scheduleMode = 'stage';
 
 const today = () => todayISO();
+const region = () => state.region;
 
 // claude.ai 에 올리는 테스트용 미리보기에서는 파일 저장·설치·알림을 쓸 수 없어 숨긴다.
 const PREVIEW = globalThis.VACCINATION_PREVIEW === true;
@@ -112,7 +113,7 @@ function dateLine(item) {
 // 기록된 제품이 있으면 그 이름, 없으면 대표 제품 이름
 function productHint(item) {
   if (item.record?.product) return item.record.product;
-  const names = productsFor(item.vaccine, activeChild().options).map((p) => p.name);
+  const names = productsFor(item.vaccine, activeChild().options, region()).map((p) => p.name);
   return names.length > 2 ? `${names.slice(0, 2).join(', ')} 등` : names.join(', ');
 }
 
@@ -150,7 +151,20 @@ function renderWelcome() {
     </section>`;
 }
 
+function regionPicker(name = 'region') {
+  return `
+    <div class="segmented variant" role="radiogroup" aria-label="접종하는 나라">
+      ${Object.entries(REGIONS)
+        .map(
+          ([key, r]) => `
+        <label><input type="radio" name="${name}" value="${key}" data-action="set-region" ${state.region === key ? 'checked' : ''} /><span>${r.label}</span></label>`,
+        )
+        .join('')}
+    </div>`;
+}
+
 function childFormHTML(child = null) {
+  const first = !child && !state.children.length;
   return `
     <form class="card form" data-form="child" data-child="${child?.id ?? ''}">
       <label>아기 이름 (태명도 좋아요)
@@ -159,6 +173,7 @@ function childFormHTML(child = null) {
       <label>생년월일
         <input name="birth" type="date" required max="${today()}" value="${esc(child?.birth ?? '')}" />
       </label>
+      ${first ? `<div class="field"><span class="field-label">접종하는 나라</span>${regionPicker()}<span class="note">나라에 따라 맞을 수 있는 백신 제품이 달라요. 나중에 설정에서 바꿀 수 있어요.</span></div>` : ''}
       <div class="actions">
         ${child ? '<button type="button" class="btn ghost" data-action="close-dialog">취소</button>' : ''}
         <button class="btn primary">${child ? '저장' : '시작하기'}</button>
@@ -214,11 +229,29 @@ function renderHome() {
       ${next.length ? upcomingHTML(next) : '<p class="empty">예정된 접종이 없어요.</p>'}
     </section>
 
+    ${region() === 'vn' ? extrasHTML() : ''}
+
     <p class="disclaimer">
       일정은 질병관리청 국가예방접종 표준일정을 기준으로 계산한 권장 시기예요.
-      실제 접종은 아이 상태와 백신 종류에 따라 달라질 수 있으니 소아청소년과 의사와 상담하고,
-      <a href="https://nip.kdca.go.kr" target="_blank" rel="noopener">예방접종도우미</a>에서도 확인해 주세요.
+      ${
+        region() === 'vn'
+          ? '베트남 국가예방접종(TCMR)은 2·3·4개월 혼합백신, 9개월 홍역처럼 한국과 일정이 달라요. 제품 재고와 일정은 VNVC·롱쩌우 등 접종센터에서 확인해 주세요.'
+          : '실제 접종은 아이 상태와 백신 종류에 따라 달라질 수 있으니 소아청소년과 의사와 상담하고, <a href="https://nip.kdca.go.kr" target="_blank" rel="noopener">예방접종도우미</a>에서도 확인해 주세요.'
+      }
     </p>`;
+}
+
+function extrasHTML() {
+  return `
+    <section class="block">
+      <h2>베트남에서 추가로 고려하는 접종</h2>
+      <ul class="list card">
+        ${EXTRAS_VN.map(
+          (x) => `<li><div><strong>${esc(x.name)}</strong><span>${esc(x.products)}</span><span>${esc(x.when)}</span></div></li>`,
+        ).join('')}
+      </ul>
+      <p class="note">한국 표준일정에는 없는 접종이라 체크 목록에는 넣지 않았어요. 필요한지는 소아과 의사와 상의하세요.</p>
+    </section>`;
 }
 
 function upcomingHTML(items) {
@@ -262,7 +295,7 @@ function renderSchedule() {
             <section class="block">
               <h2>${esc(vaccine.name)} <span class="h-sub">${esc(vaccine.disease)}</span> <small>${done}/${items.length}</small></h2>
               ${vaccine.variants ? variantPicker(vaccine) : ''}
-              <p class="note">대표 제품: ${esc(productsFor(vaccine, activeChild().options).map((p) => p.name).join(' · '))}</p>
+              <p class="note">대표 제품: ${esc(productsFor(vaccine, activeChild().options, region()).map((p) => p.name).join(' · '))}</p>
               <ul class="doses">${items.map((i) => doseRow(i)).join('')}</ul>
             </section>`;
           })
@@ -284,9 +317,9 @@ function variantPicker(vaccine, { name = `variant-${vaccine.id}` } = {}) {
     <div class="segmented variant" role="radiogroup" aria-label="${esc(vaccine.disease)} 백신 종류">
       ${Object.entries(vaccine.variants)
         .map(
-          ([key, v]) => `
+          ([key]) => `
         <label><input type="radio" name="${name}" value="${key}" data-action="set-option" data-option="${vaccine.option}"
-          ${current === key ? 'checked' : ''} /><span>${esc(v.label)}</span></label>`,
+          ${current === key ? 'checked' : ''} /><span>${esc(variantLabel(vaccine, key, region()))}</span></label>`,
         )
         .join('')}
     </div>`;
@@ -315,6 +348,14 @@ function renderSettings() {
           : `<section class="block"><h2>설치</h2>${installHTML()}</section>`
     }
     <section class="block">
+      <h2>접종하는 나라</h2>
+      <div class="card form">
+        ${regionPicker('region-setting')}
+        <p class="note">선택한 나라에서 맞을 수 있는 백신 제품을 보여줘요. 접종 일정은 한국 표준일정을 기준으로 계산해요.</p>
+      </div>
+    </section>
+
+    <section class="block">
       <h2>아이 정보</h2>
       <ul class="list card">
         ${state.children
@@ -339,7 +380,7 @@ function renderSettings() {
           <label>${esc(v.disease)}
             <select data-action="set-option" data-option="${v.option}">
               ${Object.entries(v.variants)
-                .map(([k, variant]) => `<option value="${k}" ${child.options[v.option] === k ? 'selected' : ''}>${esc(variant.label)}</option>`)
+                .map(([k]) => `<option value="${k}" ${child.options[v.option] === k ? 'selected' : ''}>${esc(variantLabel(v, k, region()))}</option>`)
                 .join('')}
             </select>
           </label>`,
@@ -414,7 +455,7 @@ function ask(message, { ok = '확인', danger = false } = {}) {
 }
 
 function productFieldHTML(item, current) {
-  const products = productsFor(item.vaccine, activeChild().options);
+  const products = productsFor(item.vaccine, activeChild().options, region());
   // 로타바이러스처럼 종류마다 제품이 하나뿐이면 종류 선택이 곧 제품 선택이다.
   if (item.vaccine.variants && products.length === 1) {
     return `<input type="hidden" name="product" value="${esc(products[0].name)}" />`;
@@ -425,7 +466,7 @@ function productFieldHTML(item, current) {
       <select name="product" data-action="dose-product">
         <option value="">선택 안 함</option>
         ${products
-          .map((p) => `<option value="${esc(p.name)}" ${p.name === current ? 'selected' : ''}>${esc(p.name)}${p.covers ? ' (혼합)' : ''}</option>`)
+          .map((p) => `<option value="${esc(p.name)}" ${p.name === current ? 'selected' : ''}>${esc(p.name)}${p.covers && !/가\)|\+/.test(p.name) ? ' (혼합)' : ''}</option>`)
           .join('')}
         <option value="__custom" ${known ? '' : 'selected'}>직접 입력</option>
       </select>
@@ -435,11 +476,17 @@ function productFieldHTML(item, current) {
 
 // 혼합백신(예: 펜탁심)을 고르면 함께 맞은 백신의 다음 차수를 같이 기록할 수 있게 한다.
 function comboTargets(item, productName) {
-  const product = item.vaccine.products.find((p) => p.name === productName);
+  const product = findProduct(item.vaccine, productName);
   if (!product?.covers) return [];
   const plan = currentPlan();
+  // 같은 날 맞는 차수: 아직 기록 안 한 차수 중 예정일이 가장 가까운 것
+  const gap = (i) => Math.abs(diffDays(item.start, i.start));
   return product.covers
-    .map((vid) => plan.find((i) => i.vaccine.id === vid && !i.record && i.id !== item.id))
+    .map((vid) =>
+      plan
+        .filter((i) => i.vaccine.id === vid && !i.record && i.id !== item.id)
+        .sort((a, b) => gap(a) - gap(b))[0],
+    )
     .filter(Boolean);
 }
 
@@ -481,6 +528,7 @@ function openDose(id, draft = null) {
       </dl>
       ${item.estimated ? `<p class="note">이전 차수를 맞으면 그 날짜를 기준으로 다시 계산돼요.</p>` : ''}
       ${item.vaccine.note ? `<p class="note">${esc(item.vaccine.note)}</p>` : ''}
+      ${regionNote(item.vaccine, region()) ? `<p class="note region-note">${REGIONS[region()].label} · ${esc(regionNote(item.vaccine, region()))}</p>` : ''}
       ${item.vaccine.variants ? `<div class="field"><span class="field-label">백신 종류</span>${variantPicker(item.vaccine, { name: 'variant' })}</div>` : ''}
       ${productFieldHTML(item, product)}
       <div data-combo>${item.record ? '' : comboHTML(item, product)}</div>
@@ -550,6 +598,7 @@ function saveChild(form) {
   const birth = String(data.get('birth'));
   if (!name || !isValidDate(birth)) return toast('이름과 생년월일을 확인해 주세요');
   if (compare(birth, today()) > 0) return toast('생년월일은 오늘 이후일 수 없어요');
+  if (data.get('region') in REGIONS) state.region = data.get('region');
   const id = form.dataset.child;
   const existing = state.children.find((c) => c.id === id);
   if (existing) {
@@ -731,6 +780,11 @@ document.addEventListener('change', (e) => {
     }
     const label = el.tagName === 'SELECT' ? el.selectedOptions[0].textContent : el.nextElementSibling.textContent;
     toast(`${label}(으)로 바꿨어요`);
+  } else if (el.dataset.action === 'set-region') {
+    state.region = el.value;
+    persist();
+    if (activeChild()) render();
+    toast(`${REGIONS[el.value].label}에서 맞을 수 있는 백신으로 바꿨어요`);
   } else if (el.dataset.action === 'dose-product') {
     const form = el.closest('form');
     const custom = form.productCustom;
