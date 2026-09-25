@@ -1,6 +1,6 @@
 // 오프라인에서도 앱이 열리도록 앱 파일을 캐시한다.
 // 파일을 바꾸면 VERSION 을 올려서 이전 캐시를 비운다.
-const VERSION = 'v2';
+const VERSION = 'v3';
 const CACHE = `vaccination-${VERSION}`;
 const ASSETS = [
   './',

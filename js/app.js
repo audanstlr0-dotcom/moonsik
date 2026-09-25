@@ -15,6 +15,9 @@ let scheduleMode = 'stage';
 
 const today = () => todayISO();
 
+// claude.ai 에 올리는 테스트용 미리보기에서는 파일 저장·설치·알림을 쓸 수 없어 숨긴다.
+const PREVIEW = globalThis.VACCINATION_PREVIEW === true;
+
 // ---------- 홈 화면에 설치 ----------
 
 let installPrompt = null;
@@ -34,7 +37,7 @@ window.addEventListener('appinstalled', () => {
 });
 
 function installHTML({ dismissible = false } = {}) {
-  if (isStandalone()) return '';
+  if (PREVIEW || isStandalone()) return '';
   if (dismissible && state.installDismissed) return '';
   const how = installPrompt
     ? '<button type="button" class="btn primary small" data-action="install">설치</button>'
@@ -283,7 +286,14 @@ function renderSettings() {
   }[notif];
 
   view.innerHTML = `
-    ${isStandalone() ? '' : `<section class="block"><h2>설치</h2>${installHTML()}</section>`}
+    ${
+      PREVIEW
+        ? `<section class="block"><div class="card row install"><div><strong>테스트 버전이에요</strong>
+            <span>이 화면에서는 홈 화면 설치, 알림, 캘린더·백업 파일 저장이 동작하지 않아요. 입력한 기록도 오래 보관되지 않을 수 있어요.</span></div></div></section>`
+        : isStandalone()
+          ? ''
+          : `<section class="block"><h2>설치</h2>${installHTML()}</section>`
+    }
     <section class="block">
       <h2>아이 정보</h2>
       <ul class="list card">
@@ -319,7 +329,7 @@ function renderSettings() {
       </div>
     </section>
 
-    <section class="block">
+    <section class="block" data-preview-hide>
       <h2>알림</h2>
       <div class="card row">
         <div><strong>접종 알림</strong><span>${notifText}</span></div>
@@ -333,11 +343,11 @@ function renderSettings() {
 
     <section class="block">
       <h2>데이터</h2>
-      <div class="card row">
+      <div class="card row" data-preview-hide>
         <div><strong>백업 파일 저장</strong><span>기기를 바꿀 때 백업 파일로 옮길 수 있어요</span></div>
         <button type="button" class="btn ghost small" data-action="export-json">저장</button>
       </div>
-      <div class="card row">
+      <div class="card row" data-preview-hide>
         <div><strong>백업 불러오기</strong><span>현재 데이터를 백업 파일 내용으로 바꿔요</span></div>
         <label class="btn ghost small">불러오기<input type="file" accept="application/json,.json" data-action="import-json" hidden /></label>
       </div>
@@ -359,6 +369,28 @@ function openDialog(html) {
 
 function closeDialog() {
   if (dialog.open) dialog.close();
+}
+
+// 브라우저 기본 confirm() 대신 쓰는 앱 안 확인 창
+function ask(message, { ok = '확인', danger = false } = {}) {
+  return new Promise((resolve) => {
+    openDialog(`
+      <div class="sheet">
+        <p class="ask">${esc(message).replace(/\n/g, '<br />')}</p>
+        <div class="actions">
+          <button type="button" class="btn ghost" data-ask="no">취소</button>
+          <button type="button" class="btn ${danger ? 'danger solid' : 'primary'}" data-ask="yes">${esc(ok)}</button>
+        </div>
+      </div>`);
+    const done = (answer) => {
+      dialog.removeEventListener('close', onClose);
+      closeDialog();
+      resolve(answer);
+    };
+    const onClose = () => done(false);
+    dialog.addEventListener('close', onClose);
+    for (const btn of dialog.querySelectorAll('[data-ask]')) btn.addEventListener('click', () => done(btn.dataset.ask === 'yes'));
+  });
 }
 
 function openDose(id) {
@@ -431,10 +463,11 @@ function quickToggle(id) {
   );
 }
 
-function bulkOverdue() {
+async function bulkOverdue() {
   const overdue = currentPlan().filter((i) => i.status === 'overdue');
   if (!overdue.length) return;
-  if (!confirm(`권장 시기가 지난 ${overdue.length}건을 모두 권장일에 맞은 것으로 기록할까요?\n나중에 항목별로 날짜를 고칠 수 있어요.`)) return;
+  const msg = `권장 시기가 지난 ${overdue.length}건을 모두 권장일에 맞은 것으로 기록할까요?\n나중에 항목별로 날짜를 고칠 수 있어요.`;
+  if (!(await ask(msg, { ok: `${overdue.length}건 기록` }))) return;
   const records = recordsOf(activeChild());
   for (const item of overdue) records[item.id] = { date: item.start, memo: '' };
   persist();
@@ -465,9 +498,9 @@ function saveChild(form) {
   toast(existing ? '저장했어요' : `${name}의 접종 일정을 만들었어요`);
 }
 
-function deleteChild(id) {
+async function deleteChild(id) {
   const child = state.children.find((c) => c.id === id);
-  if (!child || !confirm(`${child.name}의 정보와 접종 기록을 모두 삭제할까요?`)) return;
+  if (!child || !(await ask(`${child.name}의 정보와 접종 기록을 모두 삭제할까요?`, { ok: '삭제', danger: true }))) return;
   state.children = state.children.filter((c) => c.id !== id);
   delete state.records[id];
   state = normalize(state);
@@ -499,7 +532,7 @@ async function importJSON(file) {
   try {
     const next = normalize(JSON.parse(await file.text()));
     if (!next.children.length) throw new Error('empty');
-    if (!confirm(`백업에서 아이 ${next.children.length}명의 기록을 불러올까요? 현재 데이터는 대체돼요.`)) return;
+    if (!(await ask(`백업에서 아이 ${next.children.length}명의 기록을 불러올까요?\n현재 데이터는 대체돼요.`, { ok: '불러오기' }))) return;
     state = next;
     persist();
     render();
@@ -542,6 +575,14 @@ async function notifyIfNeeded() {
   }
 }
 
+async function resetAll() {
+  if (!(await ask('모든 아이 정보와 접종 기록을 삭제할까요?\n되돌릴 수 없어요.', { ok: '모두 삭제', danger: true }))) return;
+  state = normalize({});
+  persist();
+  currentView = 'home';
+  render();
+}
+
 // ---------- 렌더링 / 이벤트 ----------
 
 function render() {
@@ -552,6 +593,7 @@ function render() {
     .map((c) => `<option value="${c.id}" ${c.id === state.activeChildId ? 'selected' : ''}>${esc(c.name)}</option>`)
     .join('');
   document.body.classList.toggle('no-child', !child);
+  document.body.classList.toggle('preview', PREVIEW);
 
   if (!child) return renderWelcome();
   for (const btn of document.querySelectorAll('.tabbar button')) {
@@ -598,14 +640,7 @@ document.addEventListener('click', (e) => {
   }
   else if (action === 'export-ics') exportICS();
   else if (action === 'export-json') exportJSON();
-  else if (action === 'reset') {
-    if (confirm('모든 아이 정보와 접종 기록을 삭제할까요? 되돌릴 수 없어요.')) {
-      state = normalize({});
-      persist();
-      currentView = 'home';
-      render();
-    }
-  }
+  else if (action === 'reset') resetAll();
 });
 
 document.addEventListener('change', (e) => {

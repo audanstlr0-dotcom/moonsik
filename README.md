@@ -26,6 +26,11 @@ npm start      # http://localhost:8080 에서 실행
 npm test       # 일정 계산 로직 테스트
 ```
 
+## 테스트용 미리보기
+
+`node scripts/build-preview.mjs` 로 한 파일짜리 미리보기(`dist/preview.html`)를 만들 수 있습니다.
+claude.ai 아티팩트로 올려 휴대폰에서 바로 눌러 볼 때 쓰며, 이 버전에서는 설치·알림·파일 저장이 꺼져 있습니다.
+
 ## 휴대폰에서 쓰기
 
 앱 주소: **https://audanstlr0-dotcom.github.io/moonsik/**

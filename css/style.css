@@ -807,3 +807,19 @@ dialog::backdrop {
 .install:has(.close) div {
   padding-right: 20px;
 }
+
+.ask {
+  margin: 4px 0 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.btn.danger.solid {
+  background: var(--warn);
+  border-color: var(--warn);
+  color: #fff;
+}
+
+.preview [data-preview-hide] {
+  display: none;
+}
