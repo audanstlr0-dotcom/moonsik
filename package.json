@@ -1,0 +1,11 @@
+{
+  "name": "moonsik-vaccination",
+  "version": "1.0.0",
+  "private": true,
+  "description": "신생아·영유아 예방접종 일정 알림 및 접종 체크 앱 (PWA)",
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test"
+  }
+}
