@@ -6,7 +6,7 @@ const root = new URL('..', import.meta.url);
 const read = (p) => readFile(new URL(p, root), 'utf8');
 
 // 의존 순서대로 모듈을 이어 붙이고 import/export 문을 걷어낸다 (한 <script type="module"> 스코프).
-const modules = ['js/schedule.js', 'js/dates.js', 'js/planner.js', 'js/ics.js', 'js/store.js', 'js/app.js'];
+const modules = ['js/schedule.js', 'js/dates.js', 'js/planner.js', 'js/ics.js', 'js/store.js', 'js/products.js', 'js/app.js'];
 const js = (await Promise.all(modules.map(read)))
   .map((src) => src.replace(/^import [\s\S]*?;\n/gm, '').replace(/^export /gm, ''))
   .join('\n');

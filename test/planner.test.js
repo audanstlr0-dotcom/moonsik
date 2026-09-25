@@ -4,6 +4,7 @@ import { buildPlan, agenda, reminders, summarize, groupByStage } from '../js/pla
 import { buildICS, foldLine } from '../js/ics.js';
 import { normalize } from '../js/store.js';
 import { VACCINES, productsFor, variantLabel } from '../js/schedule.js';
+import { PRODUCT_INFO, AFTERCARE } from '../js/products.js';
 
 const child = (options) => ({ id: 'c1', name: '문식', birth: '2026-07-25', options });
 const find = (plan, id) => plan.find((i) => i.id === id);
@@ -152,4 +153,17 @@ test('2026년 점검: 한국 국가예방접종 제품 반영', () => {
   assert.ok(names('pcv').some((n) => n.startsWith('프리베나20')));
   assert.ok(!names('var').includes('수두박스')); // 단종
   assert.ok(names('hib', 'vn').some((n) => n.startsWith('Quimi-Hib')));
+});
+
+test('모든 제품에 정보가 있고, 모든 백신에 접종 후 안내가 있다', () => {
+  for (const v of VACCINES) {
+    assert.ok(AFTERCARE[v.id]?.length, `aftercare ${v.id}`);
+    for (const region of ['kr', 'vn']) {
+      for (const p of v.productsByRegion[region]) {
+        const info = PRODUCT_INFO[p.name];
+        assert.ok(info, `정보 없음: ${p.name}`);
+        assert.ok(info.type && info.route, `종류/접종 방법 없음: ${p.name}`);
+      }
+    }
+  }
 });

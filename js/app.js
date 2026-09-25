@@ -2,6 +2,7 @@ import { VACCINES, REGIONS, EXTRAS_VN, productsFor, findProduct, variantLabel, r
 import { buildPlan, groupByStage, groupByVaccine, summarize, agenda, reminders, STATUS } from './planner.js';
 import { todayISO, formatAge, formatDate, relativeDays, isValidDate, compare, diffDays } from './dates.js';
 import { buildICS } from './ics.js';
+import { PRODUCT_INFO, AFTERCARE, EMERGENCY } from './products.js';
 import { load, save, normalize, newId } from './store.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -126,14 +127,22 @@ function doseRow(item, { showWhen = true } = {}) {
         aria-pressed="${done}" aria-label="${esc(item.vaccine.name)} ${item.dose.no}차 ${done ? '접종 취소' : '접종 완료로 표시'}">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 12.5 4 4 8-9" /></svg>
       </button>
-      <button type="button" class="dose-body" data-action="open-dose" data-dose="${item.id}">
-        <span class="dose-title">
-          <strong>${esc(item.vaccine.name)} ${item.dose.no}차</strong>
-          <span class="disease">${esc(item.vaccine.disease)}</span>
-        </span>
-        <span class="dose-meta">${showWhen ? `${esc(item.dose.when)} · ` : ''}${dateLine(item)}</span>
-        ${product ? `<span class="dose-product${item.record?.product ? ' is-set' : ''}">${esc(product)}</span>` : ''}
-      </button>
+      <div class="dose-main">
+        <button type="button" class="dose-body" data-action="open-dose" data-dose="${item.id}">
+          <span class="dose-title">
+            <strong>${esc(item.vaccine.name)} ${item.dose.no}차</strong>
+            <span class="disease">${esc(item.vaccine.disease)}</span>
+          </span>
+          <span class="dose-meta">${showWhen ? `${esc(item.dose.when)} · ` : ''}${dateLine(item)}</span>
+        </button>
+        ${
+          product
+            ? `<button type="button" class="dose-product${item.record?.product ? ' is-set' : ''}" data-action="product-info"
+                data-vaccine="${item.vaccine.id}" data-product="${esc(item.record?.product ?? '')}"
+                aria-label="${esc(product)} 백신 정보 보기">${esc(product)}<span aria-hidden="true">›</span></button>`
+            : ''
+        }
+      </div>
       ${statusChip(item)}
     </li>`;
 }
@@ -295,7 +304,11 @@ function renderSchedule() {
             <section class="block">
               <h2>${esc(vaccine.name)} <span class="h-sub">${esc(vaccine.disease)}</span> <small>${done}/${items.length}</small></h2>
               ${vaccine.variants ? variantPicker(vaccine) : ''}
-              <p class="note">대표 제품: ${esc(productsFor(vaccine, activeChild().options, region()).map((p) => p.name).join(' · '))}</p>
+              <div class="product-chips" aria-label="백신 제품 정보">
+                ${productsFor(vaccine, activeChild().options, region())
+                  .map((p) => `<button type="button" class="chip-btn" data-action="product-info" data-vaccine="${vaccine.id}" data-product="${esc(p.name)}">${esc(p.name)}</button>`)
+                  .join('')}
+              </div>
               <ul class="doses">${items.map((i) => doseRow(i)).join('')}</ul>
             </section>`;
           })
@@ -457,8 +470,9 @@ function ask(message, { ok = '확인', danger = false } = {}) {
 function productFieldHTML(item, current) {
   const products = productsFor(item.vaccine, activeChild().options, region());
   // 로타바이러스처럼 종류마다 제품이 하나뿐이면 종류 선택이 곧 제품 선택이다.
+  const infoLink = `<button type="button" class="link-btn" data-action="product-info-from-dose">ⓘ 제품 정보 보기</button>`;
   if (item.vaccine.variants && products.length === 1) {
-    return `<input type="hidden" name="product" value="${esc(products[0].name)}" />`;
+    return `<input type="hidden" name="product" value="${esc(products[0].name)}" />${infoLink}`;
   }
   const known = !current || products.some((p) => p.name === current);
   return `
@@ -471,7 +485,86 @@ function productFieldHTML(item, current) {
         <option value="__custom" ${known ? '' : 'selected'}>직접 입력</option>
       </select>
     </label>
-    <input name="productCustom" maxlength="30" placeholder="제품 이름" value="${known ? '' : esc(current)}" ${known ? 'hidden' : ''} aria-label="제품 이름 직접 입력" />`;
+    <input name="productCustom" maxlength="30" placeholder="제품 이름" value="${known ? '' : esc(current)}" ${known ? 'hidden' : ''} aria-label="제품 이름 직접 입력" />
+    ${infoLink}`;
+}
+
+// ---------- 백신 제품 정보 ----------
+
+let sheetBack = null; // 정보 창에서 '돌아가기'를 누르면 다시 열 화면
+
+function backButton() {
+  return sheetBack
+    ? '<button type="button" class="btn ghost" data-action="sheet-back">← 돌아가기</button>'
+    : '<button type="button" class="btn ghost" data-action="close-dialog">닫기</button>';
+}
+
+function openProductList(vaccineId, back = null) {
+  const vaccine = VACCINES.find((v) => v.id === vaccineId);
+  sheetBack = back;
+  const list = vaccine.productsByRegion[region()];
+  openDialog(`
+    <div class="sheet">
+      <header><div>
+        <p class="sheet-kicker">${esc(vaccine.disease)} · ${REGIONS[region()].label}</p>
+        <h2>${esc(vaccine.name)} 백신 제품</h2>
+      </div></header>
+      <ul class="product-list">
+        ${list
+          .map((p) => {
+            const info = PRODUCT_INFO[p.name];
+            return `<li><button type="button" data-action="product-info" data-vaccine="${vaccine.id}" data-product="${esc(p.name)}" data-from="list">
+              <strong>${esc(p.name)}</strong>
+              <span>${esc([info?.maker, info?.type].filter(Boolean).join(' · '))}</span>
+            </button></li>`;
+          })
+          .join('')}
+      </ul>
+      <div class="actions">${backButton()}</div>
+    </div>`);
+}
+
+function openProductInfo(vaccineId, name, back = null) {
+  const vaccine = VACCINES.find((v) => v.id === vaccineId);
+  if (!name) return openProductList(vaccineId, back);
+  sheetBack = back;
+  const info = PRODUCT_INFO[name];
+  const product = findProduct(vaccine, name);
+  const coversNames = (product?.covers ?? []).map((id) => VACCINES.find((v) => v.id === id).name);
+  const facts = info
+    ? [
+        ['제조사', info.maker],
+        ['생산국', info.country],
+        ['종류', info.type],
+        ['접종 방법', info.route],
+        ['예방하는 병', info.prevents ?? vaccine.disease],
+        ['접종 횟수', info.doses],
+        ['함께 기록', coversNames.length ? `${vaccine.name} + ${coversNames.join(', ')}` : null],
+      ].filter(([, v]) => v)
+    : [];
+  openDialog(`
+    <div class="sheet">
+      <header><div>
+        <p class="sheet-kicker">${esc(vaccine.disease)} 백신</p>
+        <h2>${esc(name)}</h2>
+      </div></header>
+      ${
+        info
+          ? `<dl class="facts">${facts.map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>
+             ${info.note ? `<p class="note">${esc(info.note)}</p>` : ''}`
+          : '<p class="note">직접 입력한 제품이라 저장된 정보가 없어요.</p>'
+      }
+      <section class="care">
+        <h3>접종 후 살펴볼 점</h3>
+        <ul>${(AFTERCARE[vaccine.id] ?? []).map((t) => `<li>${esc(t)}</li>`).join('')}</ul>
+        <p class="warn-text">🚨 ${esc(EMERGENCY)}</p>
+      </section>
+      <p class="fine">일반적인 안내예요. 제품 설명서와 의사의 안내를 먼저 따라 주세요.</p>
+      <div class="actions">
+        ${backButton()}
+        ${sheetBack ? '' : `<button type="button" class="btn ghost" data-action="product-list" data-vaccine="${vaccine.id}">다른 제품 보기</button>`}
+      </div>
+    </div>`);
 }
 
 // 혼합백신(예: 펜탁심)을 고르면 함께 맞은 백신의 다음 차수를 같이 기록할 수 있게 한다.
@@ -734,6 +827,25 @@ document.addEventListener('click', (e) => {
   const { action } = el.dataset;
   if (action === 'quick-toggle') quickToggle(el.dataset.dose);
   else if (action === 'open-dose') openDose(el.dataset.dose);
+  else if (action === 'product-info') {
+    const { vaccine, product } = el.dataset;
+    // 제품 목록에서 열었다면 '돌아가기'로 목록(과 목록의 이전 화면)으로 돌아간다.
+    const listBack = sheetBack;
+    const back = el.dataset.from === 'list' ? () => openProductList(vaccine, listBack) : null;
+    openProductInfo(vaccine, product, back);
+  } else if (action === 'product-list') openProductList(el.dataset.vaccine);
+  else if (action === 'sheet-back') {
+    const back = sheetBack;
+    sheetBack = null;
+    back?.();
+  } else if (action === 'product-info-from-dose') {
+    const form = el.closest('form');
+    const item = currentPlan().find((i) => i.id === form.dataset.dose);
+    let product = form.product?.value ?? '';
+    if (product === '__custom') product = form.productCustom.value.trim();
+    const draft = { date: form.date.value, memo: form.memo.value, product };
+    openProductInfo(item.vaccine.id, product, () => openDose(item.id, draft));
+  }
   else if (action === 'close-dialog') closeDialog();
   else if (action === 'clear-dose') {
     setRecord($('form', dialog).dataset.dose, null);
