@@ -192,3 +192,49 @@ export function dosesFor(vaccine, options = {}) {
 export function doseId(vaccine, dose) {
   return `${vaccine.id}-${dose.no}`;
 }
+
+// 국내에서 쓰이는 대표 백신 제품. 목록에 없는 제품은 앱에서 직접 입력할 수 있다.
+//   variant: 로타바이러스·일본뇌염처럼 제품에 따라 접종 횟수가 달라지는 경우 해당 일정
+//   covers:  혼합백신이 함께 접종하는 다른 백신 (예: 펜탁심 = DTaP + IPV + Hib)
+const PRODUCTS = {
+  bcg: [{ name: '피내용 BCG (국가무료)' }, { name: '경피용 BCG (도장형)' }],
+  hepb: [{ name: '유박스B' }, { name: '헤파박스-진' }, { name: '엔게릭스-B' }],
+  dtap: [
+    { name: '인판릭스' },
+    { name: '펜탁심', covers: ['ipv', 'hib'] },
+    { name: '테트락심', covers: ['ipv'] },
+    { name: '인판릭스-IPV', covers: ['ipv'] },
+  ],
+  ipv: [
+    { name: '이모박스폴리오' },
+    { name: '펜탁심', covers: ['dtap', 'hib'] },
+    { name: '테트락심', covers: ['dtap'] },
+    { name: '인판릭스-IPV', covers: ['dtap'] },
+  ],
+  hib: [{ name: '악티브' }, { name: '히베릭스' }, { name: '유히브' }, { name: '펜탁심', covers: ['dtap', 'ipv'] }],
+  pcv: [{ name: '프리베나13' }, { name: '신플로릭스' }, { name: '박스뉴반스' }],
+  rv: [
+    { name: '로타릭스', variant: 'rv1' },
+    { name: '로타텍', variant: 'rv5' },
+  ],
+  mmr: [{ name: '엠엠알II' }, { name: '프리오릭스' }],
+  var: [{ name: '스카이바리셀라' }, { name: '배리셀라' }, { name: '수두박스' }, { name: '바리박스' }],
+  hepa: [{ name: '하브릭스' }, { name: '박타' }, { name: '아박심' }],
+  je: [
+    { name: '보령 세포배양 일본뇌염백신', variant: 'inactivated' },
+    { name: '이모젭', variant: 'live' },
+    { name: '씨디제박스', variant: 'live' },
+  ],
+  iiv: [{ name: '지씨플루' }, { name: '스카이셀플루' }, { name: '박씨그리프' }, { name: '플루아릭스' }],
+  tdap: [{ name: '부스트릭스' }, { name: '아다셀' }, { name: '티디퓨어 (Td)' }],
+  hpv: [{ name: '가다실' }, { name: '서바릭스' }, { name: '가다실9 (유료)' }],
+};
+
+for (const vaccine of VACCINES) vaccine.products = PRODUCTS[vaccine.id] ?? [];
+
+// 아이에게 선택된 일정(로타릭스/로타텍 등)에 맞는 제품만 돌려준다.
+export function productsFor(vaccine, options = {}) {
+  if (!vaccine.variants) return vaccine.products;
+  const key = options[vaccine.option] ?? DEFAULT_OPTIONS[vaccine.option];
+  return vaccine.products.filter((p) => !p.variant || p.variant === key);
+}

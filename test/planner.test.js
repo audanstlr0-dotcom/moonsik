@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { buildPlan, agenda, reminders, summarize, groupByStage } from '../js/planner.js';
 import { buildICS, foldLine } from '../js/ics.js';
 import { normalize } from '../js/store.js';
+import { VACCINES, productsFor } from '../js/schedule.js';
 
 const child = (options) => ({ id: 'c1', name: '문식', birth: '2026-07-25', options });
 const find = (plan, id) => plan.find((i) => i.id === id);
@@ -95,4 +96,28 @@ test('저장 데이터 정리: 잘못된 값은 버린다', () => {
   assert.deepEqual(Object.keys(state.records.a), ['bcg-1']);
   assert.equal(state.activeChildId, 'a');
   assert.deepEqual(normalize(null).children, []);
+});
+
+test('백신 제품: 선택한 일정에 맞는 제품만 보여준다', () => {
+  const rv = VACCINES.find((v) => v.id === 'rv');
+  assert.deepEqual(productsFor(rv, { rv: 'rv1' }).map((p) => p.name), ['로타릭스']);
+  assert.deepEqual(productsFor(rv, { rv: 'rv5' }).map((p) => p.name), ['로타텍']);
+  const je = VACCINES.find((v) => v.id === 'je');
+  assert.ok(productsFor(je, { je: 'live' }).every((p) => p.variant === 'live'));
+  // 모든 백신에 제품이 있고, 혼합백신이 가리키는 백신은 실제로 존재한다
+  const ids = new Set(VACCINES.map((v) => v.id));
+  for (const v of VACCINES) {
+    assert.ok(v.products.length > 0, v.id);
+    for (const p of v.products) for (const c of p.covers ?? []) assert.ok(ids.has(c), `${v.id} → ${c}`);
+    for (const p of v.products) if (p.variant) assert.ok(v.variants[p.variant], `${v.id}: ${p.variant}`);
+  }
+});
+
+test('저장 데이터: 제품 이름을 유지한다', () => {
+  const state = normalize({
+    children: [{ id: 'a', name: '문식', birth: '2026-01-01' }],
+    records: { a: { 'rv-1': { date: '2026-03-01', product: '로타텍' }, 'bcg-1': { date: '2026-01-02' } } },
+  });
+  assert.equal(state.records.a['rv-1'].product, '로타텍');
+  assert.equal(state.records.a['bcg-1'].product, '');
 });

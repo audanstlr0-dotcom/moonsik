@@ -18,7 +18,8 @@ export function normalize(raw) {
     const src = state.records?.[child.id] ?? {};
     records[child.id] = {};
     for (const [doseId, rec] of Object.entries(src)) {
-      if (rec && isValidDate(rec.date)) records[child.id][doseId] = { date: rec.date, memo: String(rec.memo ?? '') };
+      if (!rec || !isValidDate(rec.date)) continue;
+      records[child.id][doseId] = { date: rec.date, memo: String(rec.memo ?? ''), product: String(rec.product ?? '') };
     }
   }
   state.records = records;

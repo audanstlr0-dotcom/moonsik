@@ -1,4 +1,4 @@
-import { VACCINES } from './schedule.js';
+import { VACCINES, productsFor } from './schedule.js';
 import { buildPlan, groupByStage, groupByVaccine, summarize, agenda, reminders, STATUS } from './planner.js';
 import { todayISO, formatAge, formatDate, relativeDays, isValidDate, compare } from './dates.js';
 import { buildICS } from './ics.js';
@@ -109,8 +109,16 @@ function dateLine(item) {
   return `${prefix}${range}${hint}`;
 }
 
+// 기록된 제품이 있으면 그 이름, 없으면 대표 제품 이름
+function productHint(item) {
+  if (item.record?.product) return item.record.product;
+  const names = productsFor(item.vaccine, activeChild().options).map((p) => p.name);
+  return names.length > 2 ? `${names.slice(0, 2).join(', ')} 등` : names.join(', ');
+}
+
 function doseRow(item, { showWhen = true } = {}) {
   const done = item.status === 'done';
+  const product = productHint(item);
   return `
     <li class="dose status-${item.status}">
       <button type="button" class="check" data-action="quick-toggle" data-dose="${item.id}"
@@ -123,6 +131,7 @@ function doseRow(item, { showWhen = true } = {}) {
           <span class="disease">${esc(item.vaccine.disease)}</span>
         </span>
         <span class="dose-meta">${showWhen ? `${esc(item.dose.when)} · ` : ''}${dateLine(item)}</span>
+        ${product ? `<span class="dose-product${item.record?.product ? ' is-set' : ''}">${esc(product)}</span>` : ''}
       </button>
       ${statusChip(item)}
     </li>`;
@@ -252,7 +261,8 @@ function renderSchedule() {
             return `
             <section class="block">
               <h2>${esc(vaccine.name)} <span class="h-sub">${esc(vaccine.disease)}</span> <small>${done}/${items.length}</small></h2>
-              ${vaccine.variants ? `<p class="note">${esc(variantLabel(vaccine))} 기준 · 설정에서 변경할 수 있어요</p>` : ''}
+              ${vaccine.variants ? variantPicker(vaccine) : ''}
+              <p class="note">대표 제품: ${esc(productsFor(vaccine, activeChild().options).map((p) => p.name).join(' · '))}</p>
               <ul class="doses">${items.map((i) => doseRow(i)).join('')}</ul>
             </section>`;
           })
@@ -267,9 +277,19 @@ function renderSchedule() {
     ${body}`;
 }
 
-function variantLabel(vaccine) {
-  const key = activeChild().options[vaccine.option];
-  return vaccine.variants[key]?.label ?? '';
+// 로타릭스/로타텍처럼 제품에 따라 일정이 바뀌는 백신의 선택 버튼
+function variantPicker(vaccine, { name = `variant-${vaccine.id}` } = {}) {
+  const current = activeChild().options[vaccine.option];
+  return `
+    <div class="segmented variant" role="radiogroup" aria-label="${esc(vaccine.disease)} 백신 종류">
+      ${Object.entries(vaccine.variants)
+        .map(
+          ([key, v]) => `
+        <label><input type="radio" name="${name}" value="${key}" data-action="set-option" data-option="${vaccine.option}"
+          ${current === key ? 'checked' : ''} /><span>${esc(v.label)}</span></label>`,
+        )
+        .join('')}
+    </div>`;
 }
 
 // ---------- 화면: 설정 ----------
@@ -393,11 +413,57 @@ function ask(message, { ok = '확인', danger = false } = {}) {
   });
 }
 
-function openDose(id) {
+function productFieldHTML(item, current) {
+  const products = productsFor(item.vaccine, activeChild().options);
+  // 로타바이러스처럼 종류마다 제품이 하나뿐이면 종류 선택이 곧 제품 선택이다.
+  if (item.vaccine.variants && products.length === 1) {
+    return `<input type="hidden" name="product" value="${esc(products[0].name)}" />`;
+  }
+  const known = !current || products.some((p) => p.name === current);
+  return `
+    <label>백신 제품
+      <select name="product" data-action="dose-product">
+        <option value="">선택 안 함</option>
+        ${products
+          .map((p) => `<option value="${esc(p.name)}" ${p.name === current ? 'selected' : ''}>${esc(p.name)}${p.covers ? ' (혼합)' : ''}</option>`)
+          .join('')}
+        <option value="__custom" ${known ? '' : 'selected'}>직접 입력</option>
+      </select>
+    </label>
+    <input name="productCustom" maxlength="30" placeholder="제품 이름" value="${known ? '' : esc(current)}" ${known ? 'hidden' : ''} aria-label="제품 이름 직접 입력" />`;
+}
+
+// 혼합백신(예: 펜탁심)을 고르면 함께 맞은 백신의 다음 차수를 같이 기록할 수 있게 한다.
+function comboTargets(item, productName) {
+  const product = item.vaccine.products.find((p) => p.name === productName);
+  if (!product?.covers) return [];
+  const plan = currentPlan();
+  return product.covers
+    .map((vid) => plan.find((i) => i.vaccine.id === vid && !i.record && i.id !== item.id))
+    .filter(Boolean);
+}
+
+function comboHTML(item, productName) {
+  const targets = comboTargets(item, productName);
+  if (!targets.length) return '';
+  return `
+    <fieldset class="combo">
+      <legend>${esc(productName)}은(는) 혼합백신이에요. 함께 기록할까요?</legend>
+      ${targets
+        .map(
+          (t) => `<label class="check-line"><input type="checkbox" name="also" value="${t.id}" checked />
+            <span>${esc(t.vaccine.name)} ${t.dose.no}차 <span class="opt">${esc(t.vaccine.disease)}</span></span></label>`,
+        )
+        .join('')}
+    </fieldset>`;
+}
+
+function openDose(id, draft = null) {
   const item = currentPlan().find((i) => i.id === id);
   if (!item) return;
   const t = today();
-  const defaultDate = item.record?.date ?? (item.status === 'overdue' ? item.start : t);
+  const defaultDate = draft?.date || item.record?.date || (item.status === 'overdue' ? item.start : t);
+  const product = draft?.product ?? item.record?.product ?? '';
   openDialog(`
     <form class="sheet" data-form="dose" data-dose="${item.id}">
       <header>
@@ -415,11 +481,14 @@ function openDose(id) {
       </dl>
       ${item.estimated ? `<p class="note">이전 차수를 맞으면 그 날짜를 기준으로 다시 계산돼요.</p>` : ''}
       ${item.vaccine.note ? `<p class="note">${esc(item.vaccine.note)}</p>` : ''}
+      ${item.vaccine.variants ? `<div class="field"><span class="field-label">백신 종류</span>${variantPicker(item.vaccine, { name: 'variant' })}</div>` : ''}
+      ${productFieldHTML(item, product)}
+      <div data-combo>${item.record ? '' : comboHTML(item, product)}</div>
       <label>접종일
         <input type="date" name="date" required max="${t}" value="${defaultDate}" />
       </label>
-      <label><span>메모 <span class="opt">(병원, 백신 제품명 등)</span></span>
-        <input name="memo" maxlength="60" value="${esc(item.record?.memo ?? '')}" placeholder="예) 우리소아과, 인판릭스" />
+      <label><span>메모 <span class="opt">(병원, 접종 후 반응 등)</span></span>
+        <input name="memo" maxlength="60" value="${esc(draft?.memo ?? item.record?.memo ?? '')}" placeholder="예) 우리소아과, 미열 있었음" />
       </label>
       <p class="warn-text" data-early hidden>권장 시기보다 이른 날짜예요. 날짜를 한 번 더 확인해 주세요.</p>
       <div class="actions">
@@ -653,7 +722,22 @@ document.addEventListener('change', (e) => {
     activeChild().options[el.dataset.option] = el.value;
     persist();
     render();
-    toast('백신 종류를 바꿨어요');
+    const form = el.closest('form[data-form="dose"]');
+    if (form) {
+      // 다이얼로그 안에서 바꾼 경우: 입력 중인 내용은 두고 새 일정으로 다시 그린다.
+      const id = form.dataset.dose;
+      if (currentPlan().some((i) => i.id === id)) openDose(id, { date: form.date.value, memo: form.memo.value, product: '' });
+      else closeDialog();
+    }
+    const label = el.tagName === 'SELECT' ? el.selectedOptions[0].textContent : el.nextElementSibling.textContent;
+    toast(`${label}(으)로 바꿨어요`);
+  } else if (el.dataset.action === 'dose-product') {
+    const form = el.closest('form');
+    const custom = form.productCustom;
+    custom.hidden = el.value !== '__custom';
+    if (!custom.hidden) custom.focus();
+    const item = currentPlan().find((i) => i.id === form.dataset.dose);
+    if (!item.record) $('[data-combo]', form).innerHTML = comboHTML(item, el.value);
   } else if (el.dataset.action === 'import-json' && el.files[0]) {
     importJSON(el.files[0]);
     el.value = '';
@@ -668,10 +752,17 @@ document.addEventListener('submit', (e) => {
     const data = new FormData(form);
     const date = String(data.get('date'));
     if (!isValidDate(date) || compare(date, today()) > 0) return toast('접종일을 확인해 주세요');
-    const had = Boolean(recordsOf(activeChild())[form.dataset.dose]);
-    setRecord(form.dataset.dose, { date, memo: String(data.get('memo')).trim() });
+    const records = recordsOf(activeChild());
+    const had = Boolean(records[form.dataset.dose]);
+    let product = String(data.get('product') ?? '');
+    if (product === '__custom') product = String(data.get('productCustom') ?? '').trim();
+    const record = { date, memo: String(data.get('memo')).trim(), product };
+    const also = data.getAll('also').filter((id) => !records[id]);
+    for (const id of also) records[id] = { ...record };
+    setRecord(form.dataset.dose, record);
     closeDialog();
-    toast(had ? '수정했어요' : '접종 완료로 기록했어요 👏');
+    const names = also.map((id) => currentPlan().find((i) => i.id === id)).map((i) => `${i.vaccine.name} ${i.dose.no}차`);
+    toast(had ? '수정했어요' : names.length ? `${names.join(', ')}도 함께 기록했어요 👏` : '접종 완료로 기록했어요 👏');
   }
 });
 
