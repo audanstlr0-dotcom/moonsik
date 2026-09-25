@@ -84,6 +84,7 @@ a {
 
 .child-switch select {
   font: inherit;
+  font-size: 16px;
   font-weight: 600;
   padding: 6px 28px 6px 12px;
   border-radius: 999px;
@@ -298,8 +299,11 @@ label {
 }
 
 input,
-select {
+select,
+textarea {
   font: inherit;
+  /* 아이폰 Safari는 16px보다 작은 입력칸을 누르면 화면을 확대하므로 16px 이상으로 둔다 */
+  font-size: 16px;
   font-weight: 400;
   min-height: 44px;
   padding: 8px 12px;
