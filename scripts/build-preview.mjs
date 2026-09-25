@@ -16,9 +16,6 @@ let css = await read('css/style.css');
 css = css
   .replace('padding: calc(10px + env(safe-area-inset-top)) 16px 10px;', 'padding: 10px 16px;')
   .replace(/(\.topbar \{\n  position: sticky;\n  )top: 0;/, '$1top: env(safe-area-inset-top, 0px);');
-// 뷰어에서 다크 모드를 직접 고른 경우(data-theme)에도 다크 팔레트를 쓴다.
-const dark = css.match(/:root:not\(\[data-theme='light'\]\) \{([\s\S]*?)\n  \}/)[1];
-css += `\n:root[data-theme='dark'] {${dark.replace(/\n    /g, '\n  ')}\n}\n`;
 
 const html = await read('index.html');
 const body = html

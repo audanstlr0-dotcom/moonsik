@@ -1,48 +1,27 @@
 :root {
-  --bg: #fff8f4;
+  /* 밝은 테마 한 가지만 쓴다: 폰이 다크 모드여도 파스텔 톤을 유지 */
+  --bg: #fffaf6;
   --surface: #ffffff;
-  --surface-2: #fff1ea;
-  --text: #2d2320;
-  --muted: #7c6c66;
-  --line: #f1e2da;
-  --primary: #ff7a66;
+  --surface-2: #fff4ee;
+  --text: #3d302b;
+  --muted: #8b7b74;
+  --line: #f4e7df;
+  --primary: #ff8a70;
   --primary-ink: #ffffff;
-  --primary-soft: #ffe4dd;
-  --ok: #2f9e6e;
-  --ok-soft: #ddf4e9;
-  --warn: #d9480f;
-  --warn-soft: #ffe8d9;
-  --due: #7048e8;
-  --due-soft: #ece6ff;
-  --soon: #1c7ed6;
-  --soon-soft: #e1efff;
-  --shadow: 0 2px 10px rgb(80 40 20 / 6%);
-  --radius: 16px;
+  --primary-soft: #ffe9e1;
+  --sky: #e5f3ff;
+  --butter: #fff5d9;
+  --ok: #26a26b;
+  --ok-soft: #e2f7ec;
+  --warn: #e0620f;
+  --warn-soft: #fff0e2;
+  --due: #7a5cf5;
+  --due-soft: #f1ecff;
+  --soon: #2b8be6;
+  --soon-soft: #e7f3ff;
+  --shadow: 0 4px 16px rgb(255 138 112 / 10%);
+  --radius: 18px;
   color-scheme: light;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
-    --bg: #1b1614;
-    --surface: #251f1c;
-    --surface-2: #2f2724;
-    --text: #f5ece8;
-    --muted: #b3a39c;
-    --line: #3a302c;
-    --primary: #ff8a78;
-    --primary-ink: #2a120d;
-    --primary-soft: #4a2a23;
-    --ok: #63d3a0;
-    --ok-soft: #1d3a2d;
-    --warn: #ff9b6a;
-    --warn-soft: #472818;
-    --due: #b39cff;
-    --due-soft: #312a4d;
-    --soon: #74b6ff;
-    --soon-soft: #1d3149;
-    --shadow: none;
-    color-scheme: dark;
-  }
 }
 
 * {
@@ -363,7 +342,8 @@ button:focus-visible {
   gap: 16px;
   margin-top: 8px;
   padding: 20px;
-  background: linear-gradient(135deg, var(--primary-soft), var(--surface));
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--primary-soft) 0%, var(--butter) 55%, var(--sky) 100%);
 }
 
 .hero p {
