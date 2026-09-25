@@ -15,6 +15,51 @@ let scheduleMode = 'stage';
 
 const today = () => todayISO();
 
+// ---------- 홈 화면에 설치 ----------
+
+let installPrompt = null;
+const isStandalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  installPrompt = e;
+  if (activeChild()) render();
+});
+
+window.addEventListener('appinstalled', () => {
+  installPrompt = null;
+  render();
+  toast('홈 화면에 설치했어요');
+});
+
+function installHTML({ dismissible = false } = {}) {
+  if (isStandalone()) return '';
+  if (dismissible && state.installDismissed) return '';
+  const how = installPrompt
+    ? '<button type="button" class="btn primary small" data-action="install">설치</button>'
+    : '';
+  const text = isIOS()
+    ? 'Safari 아래쪽 <b>공유 버튼(□↑)</b> → <b>홈 화면에 추가</b>를 누르세요. 설치해야 알림도 받을 수 있어요.'
+    : installPrompt
+      ? '앱처럼 바로 열고, 인터넷 없이도 쓸 수 있어요.'
+      : 'Chrome 오른쪽 위 <b>⋮ 메뉴</b> → <b>홈 화면에 추가</b> 또는 <b>앱 설치</b>를 누르세요.';
+  return `
+    <div class="card row install">
+      <div><strong>📲 홈 화면에 앱으로 설치</strong><span>${text}</span></div>
+      ${how}
+      ${dismissible ? '<button type="button" class="close" data-action="dismiss-install" aria-label="닫기">×</button>' : ''}
+    </div>`;
+}
+
+async function install() {
+  if (!installPrompt) return;
+  installPrompt.prompt();
+  await installPrompt.userChoice;
+  installPrompt = null;
+  render();
+}
+
 function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 }
@@ -120,6 +165,7 @@ function renderHome() {
   const overdue = now.filter((i) => i.status === 'overdue');
 
   view.innerHTML = `
+    ${installHTML({ dismissible: true })}
     <section class="hero card">
       <div>
         <p class="hero-name">${esc(child.name)}</p>
@@ -233,10 +279,11 @@ function renderSettings() {
     granted: '켜짐 · 앱을 열 때 접종 시기가 된 항목을 알려드려요',
     denied: '차단됨 · 브라우저 설정에서 알림을 허용해 주세요',
     default: '꺼짐',
-    unsupported: '이 브라우저는 알림을 지원하지 않아요',
+    unsupported: isIOS() && !isStandalone() ? '홈 화면에 추가한 뒤 켤 수 있어요' : '이 브라우저는 알림을 지원하지 않아요',
   }[notif];
 
   view.innerHTML = `
+    ${isStandalone() ? '' : `<section class="block"><h2>설치</h2>${installHTML()}</section>`}
     <section class="block">
       <h2>아이 정보</h2>
       <ul class="list card">
@@ -543,6 +590,12 @@ document.addEventListener('click', (e) => {
       <button type="button" class="btn danger" data-action="delete-child" data-child="${child.id}">이 아이 삭제</button></div>`);
   } else if (action === 'delete-child') deleteChild(el.dataset.child);
   else if (action === 'enable-notif') enableNotifications();
+  else if (action === 'install') install();
+  else if (action === 'dismiss-install') {
+    state.installDismissed = true;
+    persist();
+    render();
+  }
   else if (action === 'export-ics') exportICS();
   else if (action === 'export-json') exportJSON();
   else if (action === 'reset') {
@@ -602,6 +655,9 @@ document.addEventListener('visibilitychange', () => {
 
 render();
 notifyIfNeeded();
+
+// 저장 공간이 부족해도 브라우저가 접종 기록을 지우지 않도록 요청
+navigator.storage?.persist?.().catch(() => {});
 
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   navigator.serviceWorker.register('sw.js').catch(() => {});

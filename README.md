@@ -26,8 +26,24 @@ npm start      # http://localhost:8080 에서 실행
 npm test       # 일정 계산 로직 테스트
 ```
 
-휴대폰에서 쓰려면 GitHub Pages 같은 HTTPS 정적 호스팅에 이 폴더를 그대로 올린 뒤,
-휴대폰 브라우저에서 열고 **홈 화면에 추가**를 누르면 됩니다.
+## 휴대폰에서 쓰기
+
+앱 주소: **https://audanstlr0-dotcom.github.io/moonsik/**
+
+1. 휴대폰 브라우저로 위 주소를 엽니다.
+2. 홈 화면에 추가합니다.
+   - **아이폰**: Safari 아래쪽 공유 버튼(□↑) → **홈 화면에 추가**
+   - **안드로이드**: Chrome에서 앱 안의 **설치** 버튼, 또는 ⋮ 메뉴 → **앱 설치 / 홈 화면에 추가**
+3. 홈 화면 아이콘으로 열면 일반 앱처럼 전체 화면으로 열리고, 인터넷이 없어도 동작합니다.
+
+> 아이폰은 홈 화면에 추가한 뒤에만 알림을 켤 수 있어요(iOS 16.4 이상).
+> 기록은 그 휴대폰에만 저장되니, 폰을 바꿀 때는 설정 → 백업 파일 저장을 이용하세요.
+
+### 배포 (처음 한 번만)
+
+`.github/workflows/pages.yml` 이 기본 브랜치에 push 될 때마다 테스트 후 자동으로 배포합니다.
+처음 한 번은 저장소 **Settings → Pages → Build and deployment → Source** 를 **GitHub Actions** 로 바꾼 뒤
+**Actions** 탭에서 "Deploy to GitHub Pages" 를 다시 실행(Re-run)하세요.
 
 ## 파일 구조
 

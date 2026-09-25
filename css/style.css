@@ -49,6 +49,10 @@
   box-sizing: border-box;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 html {
   -webkit-text-size-adjust: 100%;
 }
@@ -773,4 +777,33 @@ dialog::backdrop {
 #toast.show {
   opacity: 1;
   transform: translate(-50%, 0);
+}
+
+/* ---------- 설치 안내 ---------- */
+
+.install {
+  position: relative;
+  margin-top: 8px;
+  border-color: color-mix(in srgb, var(--primary) 40%, var(--line));
+}
+
+.install b {
+  color: var(--text);
+}
+
+.install .close {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.install:has(.close) div {
+  padding-right: 20px;
 }
