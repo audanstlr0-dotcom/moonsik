@@ -198,8 +198,14 @@ export function doseId(vaccine, dose) {
 //   covers:  혼합백신이 함께 접종하는 다른 백신 (예: 펜탁심 = DTaP + IPV + Hib)
 const PRODUCTS = {
   bcg: [{ name: '피내용 BCG (국가무료)' }, { name: '경피용 BCG (도장형)' }],
-  hepb: [{ name: '유박스B' }, { name: '헤파박스-진' }, { name: '엔게릭스-B' }],
+  hepb: [
+    { name: '유박스B' },
+    { name: '헤파박스-진티에프' },
+    { name: '엔제릭스-B' },
+    { name: '헥사심 (6가, 국가무료)', covers: ['dtap', 'ipv', 'hib'] },
+  ],
   dtap: [
+    { name: '헥사심 (6가, 국가무료)', covers: ['ipv', 'hib', 'hepb'] },
     { name: '인판릭스' },
     { name: '펜탁심', covers: ['ipv', 'hib'] },
     { name: '테트락심', covers: ['ipv'] },
@@ -207,27 +213,39 @@ const PRODUCTS = {
   ],
   ipv: [
     { name: '이모박스폴리오' },
+    { name: '헥사심 (6가, 국가무료)', covers: ['dtap', 'hib', 'hepb'] },
     { name: '펜탁심', covers: ['dtap', 'hib'] },
     { name: '테트락심', covers: ['dtap'] },
     { name: '인판릭스-IPV', covers: ['dtap'] },
   ],
-  hib: [{ name: '악티브' }, { name: '히베릭스' }, { name: '유히브' }, { name: '펜탁심', covers: ['dtap', 'ipv'] }],
-  pcv: [{ name: '프리베나13' }, { name: '신플로릭스' }, { name: '박스뉴반스' }],
+  hib: [
+    { name: '악티브' },
+    { name: '히베릭스' },
+    { name: '유히브' },
+    { name: '헥사심 (6가, 국가무료)', covers: ['dtap', 'ipv', 'hepb'] },
+    { name: '펜탁심', covers: ['dtap', 'ipv'] },
+  ],
+  pcv: [
+    { name: '프리베나20 (20가)' },
+    { name: '박스뉴반스 (15가)' },
+    { name: '프리베나13 (13가)' },
+    { name: '신플로릭스 (10가, 신규접종 종료)' },
+  ],
   rv: [
     { name: '로타릭스', variant: 'rv1' },
     { name: '로타텍', variant: 'rv5' },
   ],
   mmr: [{ name: '엠엠알II' }, { name: '프리오릭스' }],
-  var: [{ name: '스카이바리셀라' }, { name: '배리셀라' }, { name: '수두박스' }, { name: '바리박스' }],
+  var: [{ name: '스카이바리셀라' }, { name: '배리셀라' }, { name: '바리박스' }],
   hepa: [{ name: '하브릭스' }, { name: '박타' }, { name: '아박심' }],
   je: [
-    { name: '보령 세포배양 일본뇌염백신', variant: 'inactivated' },
-    { name: '이모젭', variant: 'live' },
-    { name: '씨디제박스', variant: 'live' },
+    { name: '세포배양 불활성화 백신 (보령·GC녹십자)', variant: 'inactivated' },
+    { name: '씨디제박스 (국가무료)', variant: 'live' },
+    { name: '이모젭 (유료)', variant: 'live' },
   ],
   iiv: [{ name: '지씨플루' }, { name: '스카이셀플루' }, { name: '박씨그리프' }, { name: '플루아릭스' }],
   tdap: [{ name: '부스트릭스' }, { name: '아다셀' }, { name: '티디퓨어 (Td)' }],
-  hpv: [{ name: '가다실' }, { name: '서바릭스' }, { name: '가다실9 (유료)' }],
+  hpv: [{ name: '가다실 (4가, 국가무료)' }, { name: '가다실9 (유료)' }, { name: '서바릭스 (2가)' }],
 };
 
 // 베트남에서 접종할 수 있는 제품 (VNVC·롱쩌우 등 민간 접종센터와 국가예방접종 TCMR 기준).
@@ -235,7 +253,7 @@ const PRODUCTS = {
 const HEXA = ['dtap', 'ipv', 'hib', 'hepb'];
 const combo = (name, all, self) => ({ name, covers: all.filter((id) => id !== self) });
 const PRODUCTS_VN = {
-  bcg: [{ name: 'BCG (IVAC, 국가무료)' }],
+  bcg: [{ name: 'Ivactuber BCG (IVAC, 국가무료)' }],
   hepb: [
     { name: 'Gene-HBvax (베트남)' },
     { name: 'Engerix-B' },
@@ -249,7 +267,7 @@ const PRODUCTS_VN = {
     combo('Infanrix Hexa (6가)', HEXA, 'dtap'),
     { name: 'Pentaxim (5가)', covers: ['ipv', 'hib'] },
     { name: 'Tetraxim (4가)', covers: ['ipv'] },
-    { name: '5가 DPT-VGB-Hib (국가무료)', covers: ['hib', 'hepb'] },
+    { name: '5가 DPT-VGB-Hib (SII, 국가무료)', covers: ['hib', 'hepb'] },
   ],
   ipv: [
     { name: 'Imovax Polio (IPV)' },
@@ -263,12 +281,13 @@ const PRODUCTS_VN = {
     combo('Hexaxim (6가)', HEXA, 'hib'),
     combo('Infanrix Hexa (6가)', HEXA, 'hib'),
     { name: 'Pentaxim (5가)', covers: ['dtap', 'ipv'] },
-    { name: '5가 DPT-VGB-Hib (국가무료)', covers: ['dtap', 'hepb'] },
+    { name: '5가 DPT-VGB-Hib (SII, 국가무료)', covers: ['dtap', 'hepb'] },
+    { name: 'Quimi-Hib (단독, 12개월 이후 추가접종용)' },
   ],
   pcv: [{ name: 'Synflorix (10가)' }, { name: 'Prevenar 13' }, { name: 'Vaxneuvance (15가)' }, { name: 'Prevenar 20' }],
   rv: [
     { name: 'Rotarix', variant: 'rv1' },
-    { name: 'Rotavin-M1 (베트남)', variant: 'rv1' },
+    { name: 'Rotavin-M1 (베트남, 국가무료)', variant: 'rv1' },
     { name: 'RotaTeq', variant: 'rv5' },
   ],
   mmr: [
@@ -302,9 +321,20 @@ const NOTES_VN = {
   dtap: '한국에서 쓰는 인판릭스 단독 백신 대신, 베트남에서는 Hexaxim·Infanrix Hexa(6가)나 Pentaxim(5가) 혼합백신을 주로 맞아요.',
   hib: '베트남에는 Hib 단독 백신이 거의 없어 혼합백신으로 맞아요.',
   mmr: '베트남 국가예방접종은 생후 9개월 홍역(MVVac), 18개월 MR을 무료로 접종해요. 한국 일정(12개월 MMR)과 다르니 병원과 상의하세요.',
-  rv: 'Rotavin-M1(베트남)은 로타릭스처럼 2회 먹는 백신이에요.',
-  je: 'Jevax(국가무료)와 Jeev는 불활성화 백신, Imojev는 생백신이에요. 제품마다 추가접종 일정이 다를 수 있어요.',
+  rv: 'Rotavin-M1은 2026년부터 전국 보건소에서 무료(2회, 생후 6개월 전 완료)예요. 민간에서 Rotarix·RotaTeq로 시작했다면 국가 Rotavin으로 이어서 맞을 수 없어요.',
+  je: 'Jevax(국가무료)는 1차 → 7~14일 후 2차 → 12개월 후 3차, 이후 3년마다 추가접종해요. Jeev는 28일 간격 2회 후 1년 뒤 추가접종, Imojev는 생후 9개월부터 1년 간격 2회예요. 앱의 날짜는 한국 일정 기준이니 병원 일정에 맞춰 날짜를 고쳐 주세요.',
+  pcv: '베트남은 2026년 7월부터 폐렴구균을 국가예방접종(TCMR)에 넣기로 했어요. 무료 접종 시작 시기는 보건소(Trạm Y tế)에 확인하세요.',
+  hpv: '베트남은 2026년 7월부터 HPV를 국가예방접종(TCMR)에 넣기로 했어요.',
   hepa: 'Havax는 만 2세부터 접종할 수 있어요.',
+};
+
+// 한국에서 알아둘 점 (2026년 국가예방접종 기준)
+const NOTES_KR = {
+  hepb: '헥사심(6가)으로 접종하면 출생 시 B형간염 1회 후 2·4·6개월에 헥사심으로 B형간염을 함께 맞아요(1개월 단독 접종 없음).',
+  dtap: '2025년부터 6가 혼합백신 헥사심(DTaP-IPV-Hib-HepB)이 국가무료예요. 기초접종 3회는 같은 제조사 백신으로 맞는 것이 원칙이에요.',
+  pcv: '2025년 10월부터 프리베나20, 4월부터 박스뉴반스가 국가무료예요. 신플로릭스는 2025년부터 새로 시작하는 접종에 쓰지 않아요.',
+  je: '국가무료: 불활성화 백신(보령·GC녹십자), 생백신 씨디제박스. 이모젭은 유료예요.',
+  hpv: '2026년부터 12세 남아도 무료(4가 백신)예요. 만 14세 이전에 시작하면 6개월 간격 2회로 끝나요.',
 };
 
 // 로타바이러스·일본뇌염 일정 선택 버튼의 나라별 이름
@@ -335,7 +365,7 @@ export const EXTRAS_VN = [
 
 for (const vaccine of VACCINES) {
   vaccine.productsByRegion = { kr: PRODUCTS[vaccine.id] ?? [], vn: PRODUCTS_VN[vaccine.id] ?? [] };
-  vaccine.notesByRegion = { vn: NOTES_VN[vaccine.id] };
+  vaccine.notesByRegion = { kr: NOTES_KR[vaccine.id], vn: NOTES_VN[vaccine.id] };
 }
 
 function allProducts(vaccine) {

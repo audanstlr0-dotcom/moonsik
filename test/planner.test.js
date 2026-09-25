@@ -134,7 +134,7 @@ test('저장 데이터: 제품 이름을 유지한다', () => {
 test('베트남: 현지 제품과 6가 혼합백신', () => {
   const byId = (id) => VACCINES.find((v) => v.id === id);
   const rv = byId('rv');
-  assert.deepEqual(productsFor(rv, { rv: 'rv1' }, 'vn').map((p) => p.name), ['Rotarix', 'Rotavin-M1 (베트남)']);
+  assert.deepEqual(productsFor(rv, { rv: 'rv1' }, 'vn').map((p) => p.name), ['Rotarix', 'Rotavin-M1 (베트남, 국가무료)']);
   assert.equal(variantLabel(rv, 'rv5', 'vn'), 'RotaTeq (3회)');
   assert.equal(variantLabel(rv, 'rv5', 'kr'), '로타텍 (3회)');
   const hexa = productsFor(byId('dtap'), {}, 'vn').find((p) => p.name.startsWith('Hexaxim'));
@@ -143,4 +143,13 @@ test('베트남: 현지 제품과 6가 혼합백신', () => {
   assert.ok(!productsFor(byId('je'), { je: 'inactivated' }, 'vn').some((p) => p.name.includes('보령')));
   assert.equal(normalize({ region: 'vn' }).region, 'vn');
   assert.equal(normalize({ region: 'xx' }).region, 'kr');
+});
+
+test('2026년 점검: 한국 국가예방접종 제품 반영', () => {
+  const names = (id, region = 'kr') => VACCINES.find((v) => v.id === id).productsByRegion[region].map((p) => p.name);
+  // 헥사심(6가)은 DTaP·IPV·Hib·HepB 어디서든 고를 수 있다
+  for (const id of ['dtap', 'ipv', 'hib', 'hepb']) assert.ok(names(id).some((n) => n.startsWith('헥사심')), id);
+  assert.ok(names('pcv').some((n) => n.startsWith('프리베나20')));
+  assert.ok(!names('var').includes('수두박스')); // 단종
+  assert.ok(names('hib', 'vn').some((n) => n.startsWith('Quimi-Hib')));
 });
